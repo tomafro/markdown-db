@@ -656,6 +656,8 @@ mod tests {
     }
 
     mod markdown {
+        use regex::Regex;
+
         use super::*;
 
         #[test]
