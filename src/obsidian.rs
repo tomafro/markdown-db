@@ -156,7 +156,7 @@ impl Dialect for Obsidian {
                 link.url =
                     format!("obsidian://open?path={}", parts.remove(0).to_owned()).into_bytes();
 
-                if parts.len() > 0 {
+                if !parts.is_empty() {
                     node.children().for_each(|child| {
                         if let &mut NodeValue::Text(ref mut text) =
                             &mut child.data.borrow_mut().value

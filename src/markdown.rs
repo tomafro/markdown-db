@@ -158,6 +158,7 @@ impl<'a> Document<'a> {
         self.title_from_frontmatter().or(self.title_from_source())
     }
 
+    #[allow(dead_code)]
     pub fn content(&'a self) -> String {
         self.source.read()
     }
@@ -174,7 +175,7 @@ impl<'a> Document<'a> {
             .iter()
             .filter(|link| link.meta().is_some() && link.meta().unwrap().0 == "type");
         if let Some(link) = type_links.next() {
-            let result = link.meta().unwrap().1.to_owned();
+            let result = link.meta().unwrap().1;
             Some(result)
         } else {
             None
@@ -241,6 +242,7 @@ impl<'a> Document<'a> {
         }
     }
 
+    #[allow(dead_code)]
     fn tags_from_frontmatter(&'a self) -> Option<&[String]> {
         if let Some(frontmatter) = self.front_matter() {
             frontmatter.tags()

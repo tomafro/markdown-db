@@ -14,10 +14,6 @@ pub struct Index {
     pub collections: Vec<Box<dyn crate::markdown::collection::Collection>>,
 }
 
-pub struct Options {
-    pub in_memory: bool,
-}
-
 const SCHEMA_VERSION: i64 = 3;
 
 #[allow(dead_code)]
@@ -285,6 +281,7 @@ impl SearchResults {
         &self.entries
     }
 
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
