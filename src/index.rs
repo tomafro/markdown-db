@@ -163,11 +163,18 @@ impl Index {
                     delete_from_word_index.execute((id,))?;
 
                     let tags = match document.front_matter() {
-                        Some(front_matter) => {
-                            front_matter.tags().map(|f| f.join(" ")).unwrap_or("".to_string())
-                        }
+                        Some(front_matter) => front_matter
+                            .tags()
+                            .map(|f| {
+                                f.iter()
+                                    .map(|tag| format!("#{tag}"))
+                                    .collect::<Vec<String>>()
+                                    .join(" ")
+                            })
+                            .unwrap_or("".to_string()),
                         None => "".to_string(),
                     };
+
                     let text =
                         format!("{} {} {}", &document.title().unwrap_or(""), document.text(), tags);
                     info!("{}", text);
@@ -396,7 +403,7 @@ mod tests {
         let dir = TestDir::new();
         let mut index = Index::open_in_memory(vec![Box::new(dir.path().to_path_buf())]);
 
-        dir.write("plain.md", "Document with #inline tags #after")?;
+        dir.write("doc.md", "Document with #inline tags #after")?;
         index.refresh()?;
 
         for query in ["#inline", "#after"] {
@@ -405,6 +412,34 @@ mod tests {
         }
 
         for query in ["inline", "after"] {
+            let results = index.search(query);
+            assert_eq!(0, results?.len(), "don't match unqualified tag");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn search_front_matter_tags_tests() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = TestDir::new();
+        let mut index = Index::open_in_memory(vec![Box::new(dir.path().to_path_buf())]);
+
+        let content = indoc! {"
+            ---
+            tags: first, second
+            ---
+            Document with front matter tags
+        "};
+
+        dir.write("doc.md", content)?;
+        index.refresh()?;
+
+        for query in ["#first", "#second"] {
+            let results = index.search(query);
+            assert_eq!(1, results?.len(), "match qualified tags");
+        }
+
+        for query in ["first", "second"] {
             let results = index.search(query);
             assert_eq!(0, results?.len(), "don't match unqualified tag");
         }

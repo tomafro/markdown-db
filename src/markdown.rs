@@ -241,15 +241,6 @@ impl<'a> Document<'a> {
             None
         }
     }
-
-    #[allow(dead_code)]
-    fn tags_from_frontmatter(&'a self) -> Option<&[String]> {
-        if let Some(frontmatter) = self.front_matter() {
-            frontmatter.tags()
-        } else {
-            None
-        }
-    }
 }
 
 pub struct Node<'a> {
