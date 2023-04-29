@@ -15,10 +15,12 @@ use crate::markdown::{self, Collection, Dialect, Document};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Vault {
+    pub id: String,
     pub path: String,
 }
 
 pub struct Source {
+    pub vault: String,
     pub path: PathBuf,
 }
 
@@ -49,8 +51,15 @@ impl markdown::Source for Source {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Config {
-    pub vaults: HashMap<String, Vault>,
+struct InnerVault {
+    path: String,
+    ts: u64,
+    open: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Config {
+    vaults: HashMap<String, InnerVault>,
 }
 
 impl Config {
@@ -76,7 +85,10 @@ impl Collection for Vault {
             })
             .filter_map(|entry| entry.ok())
             .map(|entry| Document {
-                source: Box::new(Source { path: entry.path().to_path_buf() }),
+                source: Box::new(Source {
+                    path: entry.path().to_path_buf(),
+                    vault: self.id.clone(),
+                }),
                 dialect: Box::new(Obsidian),
                 ..Default::default()
             })
@@ -85,13 +97,16 @@ impl Collection for Vault {
 }
 
 pub fn vaults() -> Result<Vec<Box<dyn Collection>>, Box<dyn std::error::Error>> {
-    let obsidian = Config::read()?;
-    let collections = obsidian
-        .vaults
-        .values()
-        .map(|v| Box::new(Vault { path: v.path.clone() }) as Box<dyn Collection>)
+    let inner_vaults = Config::read()?.vaults;
+    let vaults = inner_vaults
+        .into_iter()
+        .map(|(id, vault)| {
+            let path = vault.path;
+            let vault = Vault { id, path };
+            Box::new(vault) as Box<dyn Collection>
+        })
         .collect();
-    Ok(collections)
+    Ok(vaults)
 }
 
 #[derive(Default, Debug)]

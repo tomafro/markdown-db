@@ -13,7 +13,7 @@ markdown-db search <options> <query>
 - [x] Add support for non OSX platforms
 - [ ] Add support for data from backlinks: type=Person, type=Location, type=Event, etc
 
-- [ ] markdown-db stats
+- [ ] markdown-db info
 - [ ] markdown-db list
 - [ ] markdown-db export
 

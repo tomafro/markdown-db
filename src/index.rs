@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use crate::markdown::collection::Collection;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use indoc::indoc;
 use log::info;
 use rusqlite::{Connection, Transaction};
@@ -52,12 +52,14 @@ impl Index {
         )?;
 
         connection.execute("DROP TABLE IF EXISTS word_index", ())?;
-        connection
-        .execute(
+        connection.execute(
             indoc! {"
-            CREATE VIRTUAL TABLE IF NOT EXISTS word_index
-            USING fts5(document_id UNINDEXED, title, text, tokenize = \"porter unicode61 remove_diacritics 1 tokenchars '-#'\")
-            "},
+            CREATE VIRTUAL TABLE IF NOT EXISTS word_index USING fts5(
+                document_id UNINDEXED,
+                title,
+                text,
+                tokenize = \"porter unicode61 remove_diacritics 1 tokenchars '-#'\"
+            )"},
             (),
         )?;
 
@@ -104,8 +106,17 @@ impl Index {
         Self::open(collections, connection)
     }
 
+    pub fn path(&self) -> Option<String> {
+        self.connection.query_row("PRAGMA database_list", [], |row| row.get(2)).ok()
+    }
+
     pub fn size(&self) -> i64 {
         self.connection.query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0)).unwrap()
+    }
+
+    pub fn reset(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
+        Self::create_schema(&self.connection)?;
+        Ok(true)
     }
 
     pub fn refresh(&mut self) -> Result<(), rusqlite::Error> {
@@ -207,13 +218,20 @@ impl Index {
         let parts: Vec<String> = query.split(' ').map(|part| format!("\"{part}\"*")).collect();
 
         let mut match_word_index = self.connection.prepare(indoc! {"
-            SELECT uri, documents.title, markdown, type, rank FROM documents
+            SELECT uri, documents.title, markdown, type, created, modified, rank FROM documents
             JOIN word_index ON word_index.document_id = documents.id
             WHERE word_index MATCH ?1
         "})?;
 
         fn build_entry(row: &rusqlite::Row) -> Result<Entry, rusqlite::Error> {
-            Ok(Entry::new(row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            Ok(Entry::new(
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+            ))
         }
 
         let match_title = format!("{{title}} : {}", parts.join(" "));
@@ -261,11 +279,16 @@ pub struct Entry {
     #[serde(rename = "type")]
     doc_type: Option<String>,
     markdown: String,
+    created: DateTime<Utc>,
+    modified: DateTime<Utc>,
 }
 
 impl Entry {
-    pub fn new(url: String, title: String, markdown: String, doc_type: Option<String>) -> Entry {
-        Entry { title, url, doc_type, markdown }
+    pub fn new(
+        url: String, title: String, markdown: String, doc_type: Option<String>,
+        created: DateTime<Utc>, modified: DateTime<Utc>,
+    ) -> Entry {
+        Entry { title, url, doc_type, markdown, created, modified }
     }
 
     pub fn uri(&self) -> &str {
@@ -455,6 +478,7 @@ mod tests {
         dir.write("first.md", "")?;
         dir.write("folder/second.md", "")?;
         dir.write("folder/third.md", "third")?;
+        dir.write("apostrophe's.md", "fourth")?;
         index.refresh()?;
 
         let results = index.search("first")?;
@@ -474,6 +498,9 @@ mod tests {
         );
 
         let results = index.search("third")?;
+        assert_eq!(1, results.len(), "matching both title and text should only return one result");
+
+        let results = index.search("apostrophe")?;
         assert_eq!(1, results.len(), "matching both title and text should only return one result");
 
         Ok(())
